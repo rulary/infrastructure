@@ -192,7 +192,7 @@ private:
         void* result = nullptr;
 
         //dequeue an entry from queue
-        for (;;)    //it is NOT a loop here
+        do    //it is NOT a loop here
         {
             ulong_t state = m_queue.state;
             if (state == headState)
@@ -277,7 +277,7 @@ private:
             removed++;
 #endif
             break;
-        }
+        } while (false);
 
         return result;
     }
