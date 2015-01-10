@@ -71,7 +71,7 @@ public:
             sizeof(m_lpfAcceptEx),
             &dwBytesRet, NULL, NULL);
 
-        assert(m_lpfAcceptEx != nullptr);
+        ASSERT(m_lpfAcceptEx != nullptr);
 
         ::closesocket(s);
     }
@@ -172,7 +172,7 @@ private:
     inline
     void _releasePerHandleData(PERHANDLEDATA* perHandleData)
     {
-        assert(perHandleData->pendingios == 0);
+        ASSERT(perHandleData->pendingios == 0);
         perHandleData->isAlive = false;
         m_heaps.releasePerHandleData(perHandleData);
     }
@@ -192,13 +192,13 @@ private:
 
 private:
     //warning : completionKey must be safely to access
-    bool postRecvIO(PERHANDLEDATA* completionKey, IOCPMSG* perIOReuse = nullptr)
+    void postRecvIO(PERHANDLEDATA* completionKey, IOCPMSG* perIOReuse = nullptr)
     {
         IOCPMSG* perIO = perIOReuse;
 
         if (perIO == nullptr)
         {
-            assert(m_64kHandle.is64kHandleValid(completionKey->selfRef));
+            ASSERT(m_64kHandle.is64kHandleValid(completionKey->selfRef));
 
             perIO = _allocPerIOData();
             if (perIO)
@@ -213,7 +213,7 @@ private:
             if (!IOProceesStart(completionKey))
             {
                 _releasePerIOData(perIO);
-                return false;
+                return;
             }
 
             NLOG_INFO("{[%u]} reciev io[%u] start", completionKey->id, perIO->id);
@@ -231,7 +231,7 @@ private:
         if (perIO == nullptr || perIO->buff == nullptr)
         {
             IOProcessEnd(completionKey, perIO);
-            return false;
+            return;
         }
 
         WSABUF wsaBuff;
@@ -252,18 +252,18 @@ private:
         if (SOCKET_ERROR != r || WSAGetLastError() == WSA_IO_PENDING)
         {
             interlockedInc(&completionKey->postedReceiv);
-            return true;
+            return;
         }
 
         //debug
         NLOG_INFO("{[%u]}: receiv io[%u] post failed: %p : %p [%d]", completionKey->id, perIO->id, completionKey, perIO, WSAGetLastError());
         long_t temp = interlockedDec(&perIO->processed);
-        assert(temp >= 0);
+        ASSERT(temp >= 0);
 
         completionKey->isRemoving = true;
         OnNetClose(0, completionKey);
         IOProcessEnd(completionKey, perIO);
-        return false;
+        return;
     }
 
     //completionKey must be safely to access; 
@@ -440,7 +440,7 @@ private:
     void IOProcessEnd(PERHANDLEDATA* completionKey, IOCPMSG* io = nullptr,bool reuseIO = false)
     {
         auto pio = interlockedDec(&completionKey->pendingios);
-        assert(pio >= 0);
+        ASSERT(pio >= 0);
 
         if (io)
         {
@@ -463,7 +463,7 @@ private:
 
             if (hasRunDownRight)
             {
-                assert(completionKey->pendingios == 0);
+                ASSERT(completionKey->pendingios == 0);
 
                 //通知上层，可以安全释放资源
                 // user must close the 64k handle at sometime or the resouce hold by 64k handle will keep not release
@@ -494,83 +494,83 @@ private:
 
         switch (completeCode)
         {
-        case MSG_IO_RECEIVE:
-        {
-                               completionKey->completedReceives[io->id % 20] = io;
-                               interlockedInc(&completionKey->completedReceive);
+            case MSG_IO_RECEIVE:
+                {
+                    completionKey->completedReceives[io->id % 20] = io;
+                    interlockedInc(&completionKey->completedReceive);
 
-                               if (bytesTrans <= 0)
-                               {
-                                   completionKey->isRemoving = true;
-                                   OnNetClose(0, completionKey);
-                                   IOProcessEnd(completionKey, io);
-                               }
-                               else
-                               {
-                                   int  consumedLen = 0;
-                                   int  leftLen = bytesTrans;
+                    if (bytesTrans <= 0)
+                    {
+                        completionKey->isRemoving = true;
+                        OnNetClose(0, completionKey);
+                        IOProcessEnd(completionKey, io);
+                    }
+                    else
+                    {
+                        int  consumedLen = 0;
+                        int  leftLen = bytesTrans;
 
-                                   bool canreserve = (bytesTrans < io->receivBuffLen);
+                        bool canreserve = (bytesTrans < io->receivBuffLen);
 
-                                   for (;;)
-                                   {
-                                       int c = OnReceiv(io->receivBuffStart, leftLen, completionKey, canreserve);
-                                       if (c < 0 || c == 0 && !canreserve)
-                                       {
-                                           io->receivBuffStart = io->buff;
-                                           io->receivBuffLen = io->buffLen;
-                                           break;
-                                       }
+                        for (;;)
+                        {
+                            int c = OnReceiv(io->receivBuffStart, leftLen, completionKey, canreserve);
+                            if (c < 0 || c == 0 && !canreserve)
+                            {
+                                io->receivBuffStart = io->buff;
+                                io->receivBuffLen = io->buffLen;
+                                break;
+                            }
 
-                                       leftLen -= c;
+                            leftLen -= c;
 
-                                       if (leftLen <= 0)
-                                       {
-                                           io->receivBuffStart = io->buff;
-                                           io->receivBuffLen = io->buffLen;
-                                           break;
-                                       }
+                            if (leftLen <= 0)
+                            {
+                                io->receivBuffStart = io->buff;
+                                io->receivBuffLen = io->buffLen;
+                                break;
+                            }
 
-                                       consumedLen += c;
-                                       io->receivBuffStart = &io->receivBuffStart[consumedLen];
-                                       io->receivBuffLen -= c;
-                                   }
+                            consumedLen += c;
+                            io->receivBuffStart = &io->receivBuffStart[consumedLen];
+                            io->receivBuffLen -= c;
+                        }
 
-                                   assert(io->receivBuffLen > 0);
+                        ASSERT(io->receivBuffLen > 0);
 
-                                   if (io->receivBuffLen <= 0)
-                                   {
-                                       io->receivBuffStart = io->buff;
-                                       io->receivBuffLen = io->buffLen;
-                                   }
+                        if (io->receivBuffLen <= 0)
+                        {
+                            io->receivBuffStart = io->buff;
+                            io->receivBuffLen = io->buffLen;
+                        }
 
-                                   if (!completionKey->isRemoving)
-                                   {
-                                       postRecvIO(completionKey, io);
-                                   }
-                                   else
-                                   {
-                                       OnNetClose(0, completionKey);
-                                       IOProcessEnd(completionKey, io);
-                                   }
-                               }
-        }
-            break;
-        case MSG_IO_SEND:
-        {
-                            completionKey->completedSends[io->id % 20] = io;
-                            assert(io->msgType == MSG_IO_SEND);
-                            assert(io->perHandle == completionKey);
-                            interlockedInc(&completionKey->completedSend);
-                            OnSend(io->buff, io->dataLen, bytesTrans, completionKey);
+                        if (!completionKey->isRemoving)
+                        {
+                            postRecvIO(completionKey, io);
+                        }
+                        else
+                        {
+                            OnNetClose(0, completionKey);
                             IOProcessEnd(completionKey, io);
-        }
+                        }
+                    }
+                }
             break;
-        case MSG_IO_ACCEPT:
-        {
-                              OnAccepted(io, completionKey);
-                              IOProcessEnd(completionKey, io);
-        }
+            case MSG_IO_SEND:
+            {
+                completionKey->completedSends[io->id % 20] = io;
+                ASSERT(io->msgType == MSG_IO_SEND);
+                ASSERT(io->perHandle == completionKey);
+                interlockedInc(&completionKey->completedSend);
+                OnSend(io->buff, io->dataLen, bytesTrans, completionKey);
+                IOProcessEnd(completionKey, io);
+            }
+            break;
+            case MSG_IO_ACCEPT:
+            {
+                OnAccepted(io, completionKey);
+                IOProcessEnd(completionKey, io);
+            }
             break;
         default:
             processed = false;
@@ -644,7 +644,7 @@ public:
 
         // bind sokect and completionkey to completionport, prepare to accept async io
         HANDLE hIOCP = ::CreateIoCompletionPort((HANDLE)s, m_hIOCP, (ULONG_PTR)perHandleData, 0);
-        assert(hIOCP != NULL);
+        ASSERT(hIOCP != NULL);
 
         if (hIOCP == NULL)
         {
@@ -674,8 +674,8 @@ public:
 
     bool send(H64K iocpHandle, char* buff, int len, bool canLockBuff = false)
     {
-        assert(buff != nullptr);
-        assert(len > 0);
+        ASSERT(buff != nullptr);
+        ASSERT(len > 0);
 
         if (buff == nullptr || len <= 0)
             return false;
@@ -686,7 +686,7 @@ public:
             return false;
 
         //
-        assert(perHandleData->selfRef == iocpHandle);
+        ASSERT(perHandleData->selfRef == iocpHandle);
 
         // allocate an per io object
         IOCPMSG* perIO = _allocPerIOData();
@@ -752,17 +752,19 @@ public:
         return false;
     }
 
-    bool startReceiv(H64K iocpHandle, char* buff = nullptr, int len = 0)
+    void startReceiv(H64K iocpHandle, char* buff = nullptr, int len = 0)
     {
         PERHANDLEDATA* completionKey = static_cast<PERHANDLEDATA*>(m_64kHandle.get64kObject(iocpHandle));
         if (completionKey == nullptr)
-            return false;
+            return;
 
         //debug
         completionKey->isRStarting = true;
 
         //TODO : 在 completionKey 中对网络状态做标志
-        return postRecvIO(completionKey);
+        postRecvIO(completionKey);
+
+        return;
     }
 
     H64K listen(int port, void* lpCtx, const char* szIP = nullptr)
@@ -807,7 +809,7 @@ public:
         }
 
         HANDLE hIOCP = ::CreateIoCompletionPort((HANDLE)s, m_hIOCP, (ULONG_PTR)perHandleData, 0);
-        assert(hIOCP != NULL);
+        ASSERT(hIOCP != NULL);
 
         if (hIOCP == NULL || !postAcceptIO(perHandleData))
         {
@@ -893,7 +895,7 @@ private:
             if (lpIocpMsg)
             {
                 long_t temp = interlockedDec(&lpIocpMsg->processed);
-                assert(temp >= 0);
+                ASSERT(temp >= 0);
             }
 
             if (isIOCPOK)

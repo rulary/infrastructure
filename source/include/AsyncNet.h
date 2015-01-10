@@ -38,6 +38,7 @@ namespace AsyncNeting
             string       sessionName;
             INetSession_SYS* session;
 
+            string       localIP;
             int          localPort;
             string       remoteIP;
             int          remotePort;
@@ -47,6 +48,19 @@ namespace AsyncNeting
                 int      listenPort;
             };
         };
+
+        void _destroySession(INetSession_SYS* session)
+        {}
+
+        SessionContext* _createSessionContext()
+        {
+            return new SessionContext();
+        }
+
+        void _deleteSessionContext(SessionContext* ctx)
+        {
+            delete ctx;
+        }
 
     public:
         AsyncNet()
@@ -60,7 +74,7 @@ namespace AsyncNeting
         void registerNetSession(const char* szName, shared_ptr<INetSessionFactory> factory)
         {
             Locker lock(&m_lock);
-            //不处理重复的注册
+            //overwite duplcate key value
             string str(szName);
             m_factories[str] = factory;
         }
@@ -120,8 +134,7 @@ namespace AsyncNeting
             return session->getNetSessionInterface();
         }
 
-        void destroySession(INetSession_SYS* session)
-        {}
+        
 
         bool listen(const char* szSessionName, const int iPort, const char* szIP = nullptr)
         {
@@ -174,13 +187,15 @@ namespace AsyncNeting
     public:
         bool PrepareToAccept(const char* localIP, int localPort, const char* remoteIP, int remotePort, void* listenContext, void** newContext) OVERRIDE
         {
-            NLOG_INFO("有连接: %s : %d  进入", remoteIP, remotePort);
+            NLOG_INFO("new connection : R<%s : %d> incoming", remoteIP, remotePort);
             SessionContext* ctx = (SessionContext*)listenContext;
+
+            assert(ctx->listenPort == localPort);
 
             auto it = m_listenings.find(ctx->listenPort);
             if (it == m_listenings.end())
             {
-                NLOG_INFO("没有找到监听者，不接受连接 %s : %d", remoteIP, remotePort);
+                NLOG_ERROR("can not find the session listener on  L<%s :  %d，remote connection R<%s : %d> refused", localIP, localPort, remoteIP, remotePort);
                 return false;
             }
 
@@ -189,16 +204,17 @@ namespace AsyncNeting
             INetSession_SYS* session = factory->CreateSession();
             if (!session)
             {
-                NLOG_ERROR("系统错误：监听者工厂对象不存在！ %s : %d", localIP, localPort);
+                NLOG_ERROR("failed to create session object for session L<%s : %d> <= R<%s : %d>", localIP, localPort, remoteIP, remotePort);
                 return false;
             }
 
-            SessionContext* sessionContext = new SessionContext();
+            SessionContext* sessionContext = _createSessionContext();
 
             sessionContext->sessionName = it->second.first;
             sessionContext->session = session;
             sessionContext->autoDestroy = true;
 
+            sessionContext->localIP = localIP;
             sessionContext->localPort = localPort;
             sessionContext->remotePort = remotePort;
             sessionContext->remoteIP = remoteIP;
@@ -209,25 +225,28 @@ namespace AsyncNeting
 
         void AcceptFail(void* listenContext, void* newContext) OVERRIDE
         {
-            //NLOG_WARNING("接受连接： %s : %d 失败！", ip, port);
             SessionContext* ctx = (SessionContext*)newContext;
-            destroySession(ctx->session);
-            delete ctx;
+            _destroySession(ctx->session);
+            _deleteSessionContext(ctx);
         }
 
         void OnNetAccepted(H64K netHandle, void* listenContext, void* newContext) OVERRIDE
         {
-            //NLOG_INFO("接受连接: %s : %d \r\n", ip, port);
+            // for debug
+            interlockedInc(&totalStart);
 
             SessionContext* ctx = (SessionContext*)newContext;
-            interlockedInc(&totalStart);
-            ctx->session->Start(netHandle, this,
-                "127.0.0.1",
+
+            // raise session start event, inform our user that they can use all net operations now (meanwhile prepare to receive net data from now)
+            ctx->session->Start(netHandle,      // pass the net handle to that session
+                this,
+                ctx->localIP.c_str(),
                 ctx->localPort,
                 ctx->remoteIP.c_str(),
                 ctx->remotePort,
-                m_iocpNet.getId(netHandle));
+                m_iocpNet.getId(netHandle));    //use net Id as session Id
 
+            // inform net system to accept net data
             m_iocpNet.startReceiv(netHandle);
         }
 
@@ -266,8 +285,10 @@ namespace AsyncNeting
                 return;
             }
 
-            // stop all net operations
+            // stop the session; all net operations of that session should not luanche after this event
             session->Stop();
+
+            // for debug
             interlockedInc(&totalStoped);
 
             if (sessionCtx->autoDestroy)
@@ -287,7 +308,7 @@ namespace AsyncNeting
                 shared_ptr<INetSessionFactory> factory = it->second;
                 LeaveLock(&m_lock);
 
-                //不要释放对象
+                //do not destroy the session here, sence it's not control by our handler sytem
                 //factory->DestroySession(session);
             }
 

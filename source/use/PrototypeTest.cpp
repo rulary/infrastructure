@@ -21,6 +21,10 @@ int main(int argc,char** argv)
     ShowCount();
     /**/
     _getch();
+
+    StopAsyncNet();
+
+    _getch();
     
     return 0;
 }

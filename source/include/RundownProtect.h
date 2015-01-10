@@ -38,20 +38,13 @@ void initRundownProtectBlock(RUNDOWN_PROTECT* rpBlock)
 
 bool aquireRundownProtection(RUNDOWN_PROTECT* rpBlock)
 {
-    long_t count = rpBlock->count & RUNDOWN_COUNT_MARK;
-    long_t newCount = count + RUNDOWN_COUNT_INC;
-
-    newCount = interlockedCmpChange(&rpBlock->count, newCount, count);
-    if (newCount == count)
-        return true;
-
-    count = rpBlock->count;
+    long_t count = rpBlock->count;
     for (;;)
     {
         if (RUNDOWN_MARK & count)
             break;
 
-        newCount = count + RUNDOWN_COUNT_INC;
+        long_t newCount = count + RUNDOWN_COUNT_INC;
 
         newCount = interlockedCmpChange(&rpBlock->count, newCount, count);
 
@@ -121,25 +114,18 @@ void releaseRundownProtection(RUNDOWN_PROTECT* rpBlock)
 bool getRundownRight(RUNDOWN_PROTECT* rpBlock)
 {
     long_t count = rpBlock->count;
-    long_t newCount = (count - RUNDOWN_COUNT_INC) | RUNDOWN_MARK;
-
-    long_t value = interlockedCmpChange(&rpBlock->count, (newCount | RUNDOWN_MARK), count);
-    if (value == count && newCount == RUNDOWN_MARK)
-    {
-        return true;
-    }
-
-    count = rpBlock->count;
     for (;;)
     {
-        if (RUNDOWN_MARK & count)
-            break;
+        long_t newCount = (count - RUNDOWN_COUNT_INC) | RUNDOWN_MARK;
 
-        newCount = (count - RUNDOWN_COUNT_INC) | RUNDOWN_MARK;
-
-        value = interlockedCmpChange(&rpBlock->count, newCount, count);
-        if (value == count && newCount == RUNDOWN_MARK)
-            return true;
+        long_t value = interlockedCmpChange(&rpBlock->count, newCount, count);
+        if (value == count)
+        {
+            if (newCount == RUNDOWN_MARK)
+                return true;
+            else
+                return false;
+        }
 
         count = value;
     }

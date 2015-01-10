@@ -2,13 +2,16 @@
 #include "MPSCQueue.h"
 #include "mem_dump.h"
 
+#include <vector>
 #include <conio.h>
+#include <thread>
 
 #define MEMDBSERVER_IP    "127.0.0.1"
 #define MAINMEMSERVERPOT  8600
 
 long_t totalStart = 0;
 long_t totalStoped = 0;
+bool   isStopAsyncNet = false;
 using namespace AsyncNeting;
 
 class TestNetSession 
@@ -76,8 +79,9 @@ public:
         m_RemotePort = iRemotePort;
 
         //printf("网络[%u]：%d => %d 会话已经开始  \r\n",m_sId,iLocalPort,iRemotePort);
-        char* buff = "wewqewewqewqrwrewrweffgggrtfgertewtewtfegtttttttttttttttttttwwwwwwwwwwwwwwwtewwewwr";
-        send(buff, (int)strlen(buff));
+        char buff[64];
+        //= "wewqewewqewqrwrewrweffgggrtfgertewtewtfegtttttttttttttttttttwwwwwwwwwwwwwwwtewwewwr";
+        //send(buff, sizeof(buff));
         /*
         int c = 1000;
         while(c-- > 0)
@@ -144,8 +148,18 @@ public:
     }
 };
 
-void StartAsyncTest()
+static
+std::shared_ptr<std::thread> _testThread;
+
+void StopAsyncNet()
 {
+    isStopAsyncNet = true;
+    _testThread->join();
+}
+
+void AsyncTestThread()
+{
+    
     AsyncNet iocpNetTest;
     const char* sessionName = "test";
     iocpNetTest.registerNetSession(sessionName, make_shared<SessionFactory<TestNetSession>>());
@@ -162,10 +176,12 @@ void StartAsyncTest()
         return;
     }
 
-    _getch();
+    //_getch();
+
+    std::vector<INetSession*> sessions;
     /**/
     srand(GetTickCount());
-    for (int i = 1;; i++)
+    for (int i = 1, index = 0;; i++)
     {
         auto session = iocpNetTest.startSession(sessionName, MEMDBSERVER_IP, MAINMEMSERVERPOT, true);
         if (rand() % 13 == 0)
@@ -175,11 +191,33 @@ void StartAsyncTest()
             if (session)
                 session->stopNet();
         }
+        else
+        {
+            if (session)
+                sessions.push_back(session);
+        }
+
         if (i % 2000 == 0)
         {
             //iocpNetTest.showAudit();
             printf(".");
             //_getch();
         }
+
+        if (isStopAsyncNet)
+        {
+            break;
+        }
     }
+
+    for (int i = 0; i < sessions.size(); i++)
+    {
+        sessions[i]->stopNet();
+        sessions[i] = nullptr;
+    }
+}
+
+void StartAsyncTest()
+{
+    _testThread = std::make_shared<std::thread>(AsyncTestThread);
 }

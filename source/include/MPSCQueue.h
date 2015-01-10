@@ -163,7 +163,7 @@ private:
             }
         }
 
-        assert(false);
+        ASSERT(false);
 
         return -1;
     }
@@ -181,8 +181,8 @@ private:
     //             break;
     //    }
     // NOTE: Only the one who are currently owning the queue should call this function
-    //       i.e. this is a multy producer--one consummer type queue
-    //       what are interisting here is that the only one consummer can be any one,
+    //       i.e. this is a multy producer--one consummer type queue.
+    //       What interisting here is that the only one consummer can be any one,
     //       any one can try to own the list
     void* _dequeue()
     {
@@ -191,93 +191,88 @@ private:
         ulong_t prePre = 0;
         void* result = nullptr;
 
-        //dequeue an entry from queue
-        do    //it is NOT a loop here
+        ulong_t state = m_queue.state;
+        if (state == headState)
         {
-            ulong_t state = m_queue.state;
+            // the queue maybe empty now,try to release the ownership state
+            state = interlockedCmpChange((long_t*)&m_queue.state, headPtr, headState);
+
             if (state == headState)
             {
-                // the queue maybe empty now,try to release the ownership state
-                state = interlockedCmpChange((long_t*)&m_queue.state, headPtr, headState);
-
-                if (state == headState)
-                {
-                    // ownership released,all work down
-                    result = nullptr;
-                    break;
-                }
+                // ownership released,all work down
+                result = nullptr;
+                return result;
             }
+        }
 
-            // it is safe to access an element here while we still owning the queue
-            QueueEntry* entry = (QueueEntry*)_LOCKFREE_GET_PTR(state);
-            ulong_t temp = state;
+        // it is safe to access an element here while we still owning the queue
+        QueueEntry* entry = (QueueEntry*)_LOCKFREE_GET_PTR(state);
+        ulong_t temp = state;
 
-            // if there is only one entry
-            if (entry->pre == &m_queue || entry->pre->pre == nullptr)
+        // if there is only one entry
+        if (entry->pre == &m_queue || entry->pre->pre == nullptr)
+        {
+            // try to dequeue it
+            temp = interlockedCmpChange((long_t*)&m_queue.state, headState, state);
+            if (temp == state)
             {
-                // try to dequeue it
-                temp = interlockedCmpChange((long_t*)&m_queue.state, headState, state);
-                if (temp == state)
+                if (entry->pre != &m_queue)
                 {
-                    if (entry->pre != &m_queue)
+                    if (entry->pre->pre == nullptr)
                     {
-                        if (entry->pre->pre == nullptr)
-                        {
-                            _freeTFListElement(entry->pre);
-                        }
+                        _freeTFListElement(entry->pre);
                     }
-                    result = entry->value;
-
-#ifdef DEBUG_ENABLED
-                    entry->proccessed++;
-                    assert(entry->proccessed == 1);
-#endif
-                    _freeTFListElement(entry);
-
-                    m_queue.next = nullptr;  // important
-
-#ifdef DEBUG_ENABLED
-                    //interlockedInc(&removed);
-                    removed++;
-#endif
-                    break;
                 }
-
-                entry = (QueueEntry*)_LOCKFREE_GET_PTR(temp);
-            }
-
-            // if we got here it means that there are two or more entries in the queue,just consume one
-            assert(entry->pre != &m_queue);
-
-            // find the tail entry
-            if (!m_queue.next)
-                _linkReverse();
-
-            // dequeue tail element
-            entry = m_queue.next;
-            result = entry->value;
-            m_queue.next = entry->next;
+                result = entry->value;
 
 #ifdef DEBUG_ENABLED
-            entry->proccessed++;
-            assert(entry->proccessed == 1);
+                entry->proccessed++;
+                ASSERT(entry->proccessed == 1);
 #endif
-            if (m_queue.next)
-            {
-                m_queue.next->pre = &m_queue;
                 _freeTFListElement(entry);
-            }
-            else
-            {
-                entry->pre = nullptr;
-                assert(m_queue.state != _LOCKFREE_GET_STATE((long_t)entry));
-            }
+
+                m_queue.next = nullptr;  // important
 
 #ifdef DEBUG_ENABLED
-            removed++;
+                //interlockedInc(&removed);
+                removed++;
 #endif
-            break;
-        } while (false);
+                return result;
+            }
+
+            entry = (QueueEntry*)_LOCKFREE_GET_PTR(temp);
+        }
+
+        // if we got here it means that there are two or more entries in the queue,just consume one
+        ASSERT(entry->pre != &m_queue);
+
+        // find the tail entry
+        if (!m_queue.next)
+            _linkReverse();
+
+        // dequeue tail element
+        entry = m_queue.next;
+        result = entry->value;
+        m_queue.next = entry->next;
+
+#ifdef DEBUG_ENABLED
+        entry->proccessed++;
+        ASSERT(entry->proccessed == 1);
+#endif
+        if (m_queue.next)
+        {
+            m_queue.next->pre = &m_queue;
+            _freeTFListElement(entry);
+        }
+        else
+        {
+            entry->pre = nullptr;
+            ASSERT(m_queue.state != _LOCKFREE_GET_STATE((long_t)entry));
+        }
+
+#ifdef DEBUG_ENABLED
+        removed++;
+#endif
 
         return result;
     }
@@ -289,8 +284,8 @@ private:
     {
         QueueEntry* entry = (QueueEntry*)_LOCKFREE_GET_PTR(m_queue.state);
 
-        assert(entry->pre != &m_queue);
-        assert(entry->pre != nullptr);
+        ASSERT(entry->pre != &m_queue);
+        ASSERT(entry->pre != nullptr);
 
         int i = 0;
         //NOTE: we skip the "first" element of queue because it should keep open for producer to enqueue new element
@@ -336,7 +331,7 @@ public:
     int EnQueue(void* value)
     {
         QueueEntry* lfqe = _allocTFListElement();
-        assert(lfqe != nullptr);
+        ASSERT(lfqe != nullptr);
 
         lfqe->value = value;
 
