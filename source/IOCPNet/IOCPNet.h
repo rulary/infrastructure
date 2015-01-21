@@ -801,7 +801,7 @@ public:
         saddr.sin_addr.s_addr = szIP == nullptr ? htonl(INADDR_ANY) : inet_addr(szIP);
         saddr.sin_port = htons(port);
 
-        int result = bind(s, (SOCKADDR *)&saddr, sizeof(saddr));
+        int result = ::bind(s, (SOCKADDR *)&saddr, sizeof(saddr));
         if (result == SOCKET_ERROR || ::listen(s, SOMAXCONN) == SOCKET_ERROR)
         {
             m_64kHandle.decRef64kHandle(h);

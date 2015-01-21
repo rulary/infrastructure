@@ -1,6 +1,7 @@
 
 #include "datatype.h"
 #include "Test.h"
+#include "ObjectHandle.h"
 
 #include <conio.h>
 

@@ -31,6 +31,9 @@
     <Filter Include="Distribute">
       <UniqueIdentifier>{b7b55567-aca9-44c3-a5c5-b82bf6789fdb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ObjectHandle">
+      <UniqueIdentifier>{b1f26527-fb66-4539-b5db-ae326e5ea85a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\include\threadPool.h">
@@ -113,6 +116,12 @@
     </ClInclude>
     <ClInclude Include="source\include\mem_dump.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="source\include\ObjectHandle.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ObjectHandle\ObjectHandleImpl.h">
+      <Filter>ObjectHandle</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

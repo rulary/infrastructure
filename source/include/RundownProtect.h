@@ -19,7 +19,9 @@
 struct RUNDOWN_WAITBLOCK
 {
     long_t        count;
+#ifdef WAITABLE
     HANDLE        event;
+#endif
 };
 
 struct RUNDOWN_PROTECT

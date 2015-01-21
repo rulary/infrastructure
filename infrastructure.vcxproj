@@ -170,6 +170,7 @@
     <ClInclude Include="source\include\MonopolyHeap.h" />
     <ClInclude Include="source\include\NetHandler.h" />
     <ClInclude Include="source\include\NetLog.h" />
+    <ClInclude Include="source\include\ObjectHandle.h" />
     <ClInclude Include="source\include\RundownProtect.h" />
     <ClInclude Include="source\include\SerializedProcessor.h" />
     <ClInclude Include="source\include\ThreadSync.h" />
@@ -179,6 +180,7 @@
     <ClInclude Include="source\include\kTask.h" />
     <ClInclude Include="source\Log\ELog.h" />
     <ClInclude Include="source\LookAisdeList.h" />
+    <ClInclude Include="source\ObjectHandle\ObjectHandleImpl.h" />
     <ClInclude Include="source\use\Test.h" />
     <ClInclude Include="source\ThreadPool\threadPoolImpl.h" />
     <ClInclude Include="source\include\threadPool.h" />
