@@ -2,8 +2,9 @@
 #include "datatype.h"
 #include "Test.h"
 #include "ObjectHandle.h"
-
+#include "Cpp11TemplateAlias.h"
 #include <conio.h>
+#include <stdio.h>
 
 int main(int argc,char** argv)
 {
@@ -25,7 +26,8 @@ int main(int argc,char** argv)
 
     StopAsyncNet();
 
+    printf("press enter to exit program \r\n");
     _getch();
-    
+    printf("program exit \r\n");
     return 0;
 }

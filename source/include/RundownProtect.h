@@ -33,11 +33,13 @@ struct RUNDOWN_PROTECT
     };
 };
 
+static inline
 void initRundownProtectBlock(RUNDOWN_PROTECT* rpBlock)
 {
     rpBlock->count = 0;
 }
 
+static inline
 bool aquireRundownProtection(RUNDOWN_PROTECT* rpBlock)
 {
     long_t count = rpBlock->count;
@@ -59,6 +61,7 @@ bool aquireRundownProtection(RUNDOWN_PROTECT* rpBlock)
     return false;
 }
 
+static inline
 void releaseRundownProtection(RUNDOWN_PROTECT* rpBlock)
 {
 #ifndef WAITABLE
@@ -113,6 +116,7 @@ void releaseRundownProtection(RUNDOWN_PROTECT* rpBlock)
 }
 
 #ifndef WAITABLE
+static inline
 bool getRundownRight(RUNDOWN_PROTECT* rpBlock)
 {
     long_t count = rpBlock->count;
@@ -136,6 +140,7 @@ bool getRundownRight(RUNDOWN_PROTECT* rpBlock)
 }
 #endif
 #ifdef WAITABLE
+static inline
 bool waitforRundownProtectionRelease(RUNDOWN_PROTECT* rpBlock, bool skipSelf = false)
 {
     long_t intented = skipSelf ? (0 + RUNDOWN_COUNT_INC) : 0;

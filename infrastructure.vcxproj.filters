@@ -123,6 +123,9 @@
     <ClInclude Include="source\ObjectHandle\ObjectHandleImpl.h">
       <Filter>ObjectHandle</Filter>
     </ClInclude>
+    <ClInclude Include="source\use\Cpp11TemplateAlias.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\use\PrototypeTest.cpp">

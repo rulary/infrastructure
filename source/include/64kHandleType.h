@@ -8,9 +8,7 @@
 
 struct _64kObject
 {
-    unsigned int  magicCodeOfHandleObject;
-    unsigned int  refCount;
-
+    uint_t  magicCodeOfHandleObject;
     virtual void  releaseObject(){};
 
 protected:

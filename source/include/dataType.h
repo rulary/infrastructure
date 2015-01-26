@@ -3,21 +3,25 @@
 
 #include "defines.h"
 
-#if defined(_WINDOWS_)
+#if defined(_WIN_LIB_)
 
 #include <windows.h>
 
 //typedef ULONG_PTR   ulong_ptr;
 //typedef LONG_PTR    long_ptr;
-
+#ifdef _WCC_
 typedef __int64             int64_t;
 typedef unsigned __int64    uint64_t;
 
 typedef __int32             int32_t;
 typedef unsigned __int32    uint32_t;
+#else
+#   include <stdint.h>
+#endif  /* _WCC_ */
 
-
-#endif  /* _WINDOWS_ */
+#else
+#   include <stdint.h>
+#endif  /* _WIN_LIB_ */
 
 
 #ifdef X64

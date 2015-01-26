@@ -181,6 +181,7 @@
     <ClInclude Include="source\Log\ELog.h" />
     <ClInclude Include="source\LookAisdeList.h" />
     <ClInclude Include="source\ObjectHandle\ObjectHandleImpl.h" />
+    <ClInclude Include="source\use\Cpp11TemplateAlias.h" />
     <ClInclude Include="source\use\Test.h" />
     <ClInclude Include="source\ThreadPool\threadPoolImpl.h" />
     <ClInclude Include="source\include\threadPool.h" />

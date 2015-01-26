@@ -14,7 +14,24 @@ using ThreadSync::Locker;
 
 class _64kHandle
 {
-    _64kObject* handleToObject[64 * 1024];
+    typedef union _64kHandleTableEntry_
+    {
+        struct
+        {
+            _64kHandleTableEntry_* nextFreeEntry;
+            unsigned short         tableIndex;
+        };
+        struct
+        {
+            _64kObject* value;
+            uint_t      refCount;
+        };
+        
+    } _64kHandleTableEntry;
+
+    static const int TABLE_SIZE = 64 * 1024;
+    _64kHandleTableEntry handleToObject[TABLE_SIZE];
+    _64kHandleTableEntry* freeEntryList;
     int         handleTick;
     ExLock      handleLock;
     I64kObjectManager* objManager;
@@ -23,39 +40,49 @@ class _64kHandle
 
 public:
     _64kHandle(I64kObjectManager* objManager_ = nullptr)
+        :handleTick(0)
+        , freeEntryList(nullptr)
+        , objManager(objManager_)
     {
-        objManager = objManager_;
-        memset(handleToObject, 0, sizeof(void*)* 64 * 1024);
+        memset(handleToObject, 0, sizeof(handleToObject[0]) * TABLE_SIZE);
+
+        for (int i = 0; i < (TABLE_SIZE - 1); i++)
+        {
+            handleToObject[i].tableIndex = i;
+            handleToObject[i].nextFreeEntry = &handleToObject[i + 1];
+        }
+        handleToObject[TABLE_SIZE - 1].tableIndex = TABLE_SIZE - 1;
+        handleToObject[TABLE_SIZE - 1].nextFreeEntry = nullptr;
+        freeEntryList = handleToObject;
     }
 
     ~_64kHandle()
-    {}
+    {
+        ;
+    }
 
     H64K alloc64kHandle(_64kObject* obj)
     {
         Locker lock(&handleLock);
-        unsigned short htoIndex = 0;
-        bool found = false;
-
-        for (int i = 0; i < 64 * 1024; i++)
-        {
-            if (handleToObject[i] == nullptr)
-            {
-                htoIndex = (unsigned short)i;
-                found = true;
-                break;
-            }
-        }
-
-        if (!found)
+        
+        if (freeEntryList == nullptr)
             return (H64K)-1;
 
+        auto freeEntry = freeEntryList;
+        freeEntryList = freeEntryList->nextFreeEntry;
+
+        unsigned short htoIndex = freeEntry->tableIndex;
+
         int tick = handleTick++;
+
+        if (handleTick >= TABLE_SIZE - 1)
+            handleTick++;
 
         H64K r = ((tick & 0xffff) << 16) | htoIndex;
 
         obj->magicCodeOfHandleObject = r ^ _64kMagicCode;
-        handleToObject[htoIndex] = obj;
+        freeEntry->value = obj;
+        freeEntry->refCount = 0;
 
         return r;
     }
@@ -64,16 +91,25 @@ public:
     {
         Locker lock(&handleLock);
         unsigned short htoIndex = handle & 0xffff;
-        _64kObject* obj = handleToObject[htoIndex];
+
+        auto &entry = handleToObject[htoIndex];
+        _64kObject* obj = entry.value;
 
         if (obj && (handle ^ obj->magicCodeOfHandleObject) == _64kMagicCode)
-            handleToObject[htoIndex] = nullptr;
+        {
+            entry.value = nullptr;
+            entry.refCount = 0;
+
+            entry.nextFreeEntry = freeEntryList;
+            entry.tableIndex = htoIndex;
+            freeEntryList = &entry;
+        } 
     }
 
     bool is64kHandleValid(H64K handle)
     {
         unsigned short htoIndex = handle & 0xffff;
-        _64kObject* obj = handleToObject[htoIndex];
+        _64kObject* obj = handleToObject[htoIndex].value;
 
         return (obj && (handle ^ obj->magicCodeOfHandleObject) == _64kMagicCode);
     }
@@ -83,18 +119,20 @@ public:
         if (!is64kHandleValid(handle))
             return nullptr;
 
-        return handleToObject[handle & 0xffff];
+        return handleToObject[handle & 0xffff].value;
     }
 
     bool addRef64kHandle(H64K handle)
     {
         Locker lock(&handleLock);
         unsigned short htoIndex = handle & 0xffff;
-        _64kObject* obj = handleToObject[htoIndex];
+
+        auto &entry = handleToObject[htoIndex];
+        _64kObject* obj = entry.value;
 
         if (obj && (handle ^ obj->magicCodeOfHandleObject) == _64kMagicCode)
         {
-            obj->refCount++;
+            entry.refCount++;
             return true;
         }
 
@@ -105,14 +143,22 @@ public:
     {
         Locker lock(&handleLock);
         unsigned short htoIndex = handle & 0xffff;
-        _64kObject* obj = handleToObject[htoIndex];
+
+        auto &entry = handleToObject[htoIndex];
+        _64kObject* obj = entry.value;
 
         if (obj && (handle ^ obj->magicCodeOfHandleObject) == _64kMagicCode)
         {
-            obj->refCount--;
-            if (obj->refCount <= 0)
+            entry.refCount--;
+            if (entry.refCount <= 0)
             {
-                handleToObject[htoIndex] = nullptr;
+                entry.value = nullptr;
+                entry.refCount = 0;
+
+                entry.nextFreeEntry = freeEntryList;
+                entry.tableIndex = htoIndex;
+                freeEntryList = &entry;
+
                 if (objManager != nullptr)
                     objManager->release64kObj(obj);
                 else

@@ -9,10 +9,12 @@
 #define MEMDBSERVER_IP    "127.0.0.1"
 #define MAINMEMSERVERPOT  8600
 
+
 long_t totalStart = 0;
 long_t totalStoped = 0;
 bool   isStopAsyncNet = false;
 using namespace AsyncNeting;
+AsyncNet iocpNetTest;
 
 class TestNetSession 
     : public INetSession_SYS
@@ -79,9 +81,9 @@ public:
         m_RemotePort = iRemotePort;
 
         //printf("网络[%u]：%d => %d 会话已经开始  \r\n",m_sId,iLocalPort,iRemotePort);
-        char buff[64];
+        char buff[64 * 1024];
         //= "wewqewewqewqrwrewrweffgggrtfgertewtewtfegtttttttttttttttttttwwwwwwwwwwwwwwwtewwewwr";
-        //send(buff, sizeof(buff));
+        send(buff, sizeof(buff));
         /*
         int c = 1000;
         while(c-- > 0)
@@ -107,6 +109,8 @@ public:
     int  OnReceiv(char* buff, int dataLen, bool canReserve) override
     {
         //printf("网络[%u]：%d => %d 收到数据：长度为:%d  \r\n", m_sId, m_LocalPort, m_RemotePort, dataLen);
+        send(buff, dataLen);
+        /*
         if (m_sProcessor.EnQueue(this) == 1)
         {
             void* next = m_sProcessor.Dequeue();
@@ -114,7 +118,7 @@ public:
                 send(buff, dataLen);
                 next = m_sProcessor.Dequeue();
             } while (next);
-        }
+        }*/
         return dataLen;
     }
 
@@ -160,7 +164,6 @@ void StopAsyncNet()
 void AsyncTestThread()
 {
     
-    AsyncNet iocpNetTest;
     const char* sessionName = "test";
     iocpNetTest.registerNetSession(sessionName, make_shared<SessionFactory<TestNetSession>>());
 

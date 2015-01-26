@@ -4,8 +4,8 @@
 #include "buildconfig.h"
 
 #if defined(_MSC_VER) || defined(__INTER_COMPILER) || defined(__ICC)
-#   ifndef _WINDOWS_
-#       define _WINDOWS_
+#   ifndef _WCC_
+#       define _WCC_
 #   endif
 #endif
 
@@ -28,5 +28,10 @@
 #else
 #   define  ASSERT( p )
 #endif
+
+#define _WIN_LIB_
+
+#undef IOCPNETLOG
+#define IOCPNETLOG
 
 #endif

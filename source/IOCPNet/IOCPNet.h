@@ -35,7 +35,7 @@ private:
     std::list<HANDLE>   m_arrListenThreads;
     _64kHandle          m_64kHandle;
 
-    long_t              m_nextHadndleId;
+    long_t              m_nextHandleId;
 
     LPFN_ACCEPTEX       m_lpfAcceptEx;
 
@@ -44,7 +44,7 @@ public:
         :m_hIOCP(NULL)
         , m_NetHandler(netHandler)
         , m_64kHandle(this)
-        , m_nextHadndleId(-1)
+        , m_nextHandleId(-1)
     {
         SYSTEM_INFO sysinfo = { 0 };
         ::GetNativeSystemInfo(&sysinfo);
@@ -77,7 +77,9 @@ public:
     }
 
     ~IOCPNet()
-    {}
+    {
+        NLOG_INFO("IOCPNet destructed");
+    }
 
 private:
     void _startWorkTrhead(int num)
@@ -166,7 +168,7 @@ private:
     PERHANDLEDATA* _allocPerHandleData()
     {
         PERHANDLEDATA* ph = m_heaps.allocPerHandleData();
-        ph->id = interlockedInc(&m_nextHadndleId);
+        ph->id = interlockedInc(&m_nextHandleId);
         return ph;
     }
     inline
