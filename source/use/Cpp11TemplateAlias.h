@@ -16,7 +16,7 @@ using allocatorB = std::allocator< _T >;
 struct DummyType;
 
 // template alias for stl containers
-template <typename T, template<typename> class allocator = std::allocator >
+template <typename T = DummyType, template<typename> class allocator = std::allocator >
 struct StlVectorTemplate
 {
     template <typename _T>
@@ -26,7 +26,7 @@ struct StlVectorTemplate
     using TPL2 = std::vector< T, _allocator<T> >;
 };
 
-template <typename T, template<typename> class allocator = std::allocator >
+template <typename T = DummyType, template<typename> class allocator = std::allocator >
 struct StlListTemplate
 {
     template <typename _T>
@@ -73,5 +73,67 @@ struct Enumerable
 private:
     C<T> data;
 };
+
+template<typename T>
+struct Enumerable<StlListTemplate<>::TPL1, T>
+{
+
+};
+
+template <typename T, typename U>
+struct A {};
+
+struct X;
+struct Y;
+
+template <typename T = X, typename U = Y>
+struct C
+{
+    template <typename T_>
+    using TPLUsingU = A<T_, U>;
+
+    template <typename U_>
+    using TPLUsingT = A<T, U_>;
+};
+
+void f()
+{
+    C <>::TPLUsingU<Y> a;
+    a;
+}
+
+template <typename T>
+void b()
+{
+    C <T>::template TPLUsingT<Y> b;   // OK
+    b;
+}
+
+template <template <typename> class TPL>
+struct F;
+
+template <>
+struct F <C <>::TPLUsingU > {};  // OK
+
+template <>
+struct F <C <>::TPLUsingT > {};  // OK
+
+
+template <>
+struct F <C <Y>::TPLUsingT > {};  // OK
+
+//template <typename T>
+//struct F <C <typename T>::TPLUsingT > {};   // error C3200: “C<T,Y>::TPLUsingT”: 模板参数“TPL”的模板参数无效，应输入类模板
+
+template <typename T_>
+using TPLAliasA = C <T_>::template TPLUsingT;
+
+template <typename T_>
+using TPLAliasB = C <X, T_>::template TPLUsingT;
+
+//using TPLAliasC = C <X, Y>::TPLUsingU; // error C2955: “C<X,Y>::TPLUsingU”: 使用 别名 模板 需要 模板 参数列表
+
+template <>
+struct F < TPLAliasA > {};
 
 #endif
