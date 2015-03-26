@@ -141,6 +141,9 @@ public:
 
     void decRef64kHandle(H64K handle)
     {
+		if (handle == INVALID_64KHANDLE)
+			return;
+
         Locker lock(&handleLock);
         unsigned short htoIndex = handle & 0xffff;
 

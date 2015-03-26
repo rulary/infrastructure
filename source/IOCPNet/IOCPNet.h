@@ -52,8 +52,6 @@ public:
         DWORD dwWorkThread = sysinfo.dwNumberOfProcessors * 2 + 2;
         m_hIOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, sysinfo.dwNumberOfProcessors + 2);
 
-        _startWorkTrhead((int)dwWorkThread);
-        //_startWorkTrhead(2);
         WSADATA wsaData;
         ::WSAStartup(MAKEWORD(2, 2), &wsaData);
 
@@ -74,6 +72,9 @@ public:
         ASSERT(m_lpfAcceptEx != nullptr);
 
         ::closesocket(s);
+
+		//_startWorkTrhead((int)dwWorkThread);
+		_startWorkTrhead(2);
     }
 
     ~IOCPNet()
@@ -91,10 +92,13 @@ private:
         }
     }
 
+	void _stopWorkThread()
+	{}
+
     inline 
     int closeSocket(SOCKET s)
     {
-        NLOG_INFO("关闭套接字： %x",s);
+        NLOG_INFO("关闭套接字： %04X",s);
         return ::closesocket(s);
     }
 
@@ -176,6 +180,11 @@ private:
     {
         ASSERT(perHandleData->pendingios == 0);
         perHandleData->isAlive = false;
+
+		NLOG_INFO("release cpKey [%p] (isAccepted: %d)", perHandleData, perHandleData->isAccepted);
+
+		ASSERT(perHandleData->isReleased == false);
+		perHandleData->isReleased = true;
         m_heaps.releasePerHandleData(perHandleData);
     }
 
@@ -218,7 +227,7 @@ private:
                 return;
             }
 
-            NLOG_INFO("{[%u]} reciev io[%u] start", completionKey->id, perIO->id);
+			NLOG_INFO("{[%u]} reciev io[%u]:[%p] start", completionKey->id, perIO->id, completionKey);
             //debug
             completionKey->isRStarted = true;
         }
@@ -258,7 +267,7 @@ private:
         }
 
         //debug
-        NLOG_INFO("{[%u]}: receiv io[%u] post failed: %p : %p [%d]", completionKey->id, perIO->id, completionKey, perIO, WSAGetLastError());
+        NLOG_INFO("{[%u]}: receiv io[%u]:[%p] post failed: %p [%d]", completionKey->id, perIO->id, completionKey, perIO, WSAGetLastError());
         long_t temp = interlockedDec(&perIO->processed);
         ASSERT(temp >= 0);
 
@@ -413,8 +422,9 @@ private:
 
         m_64kHandle.addRef64kHandle(h);
         newCompletionKey->selfRef = h;
+		newCompletionKey->isAccepted = true;
 
-        NLOG_INFO("accept : 绑定套接字[%x] 到 [%u] : %p", s, newCompletionKey->id, newCompletionKey);
+        //NLOG_INFO("accept : 绑定套接字[%x] 到 [%u] : %p", s, newCompletionKey->id, newCompletionKey);
         HANDLE hIOCP = ::CreateIoCompletionPort((HANDLE)s, m_hIOCP, (ULONG_PTR)newCompletionKey, 0);
 
         if (hIOCP == NULL)
@@ -439,54 +449,67 @@ private:
     }
 
     inline
-    void IOProcessEnd(PERHANDLEDATA* completionKey, IOCPMSG* io = nullptr,bool reuseIO = false)
-    {
-        auto pio = interlockedDec(&completionKey->pendingios);
-        ASSERT(pio >= 0);
+	void IOProcessEnd(PERHANDLEDATA* completionKey, IOCPMSG* io = nullptr, bool reuseIO = false)
+	{
+		auto pio = interlockedDec(&completionKey->pendingios);
+		ASSERT(pio >= 0);
 
-        if (io)
-        {
-            if (io->msgType == MSG_IO_RECEIVE)
-            {
-                NLOG_INFO("{[%u]} receiv io[%u] end", completionKey->id, io->id);
-            }
-        }
+		if (io)
+		{
+			if (io->msgType == MSG_IO_RECEIVE)
+			{
+				NLOG_INFO("{[%u]} receiv io[%u]:[%p] end", completionKey->id, io->id, completionKey);
+			}
+		}
 
-        if (completionKey->isRemoving)
-        {
-            if (io)
-            {
-                NLOG_INFO("{[%u]} io[%u] try to get rundown right", completionKey->id, io->id);
-                _releasePerIOData(io);
-                io = nullptr;
-            }
+		if (!completionKey->isRemoving)
+		{
+			if (!reuseIO && io)
+			{
+				_releasePerIOData(io);
+				io = nullptr;
+			}
 
-            bool hasRunDownRight = completionKey->GetRundownRight();
+			// release io reference and return
+			completionKey->ReleaseRundownProtection();
+			return;
+		}
 
-            if (hasRunDownRight)
-            {
-                ASSERT(completionKey->pendingios == 0);
+		// the net session is end from now
+		long_t idId = -1;
+		if (io)
+		{
+			idId = io->id;
+			NLOG_INFO("{[%u]} io[%u]:[%p] try to get rundown right", completionKey->id, idId, completionKey);
+			_releasePerIOData(io);
+			io = nullptr;
+		}
 
-                //通知上层，可以安全释放资源
-                // user must close the 64k handle at sometime or the resouce hold by 64k handle will keep not release
-                m_NetHandler->OnNetDestroy(completionKey->handleContext);
+		// release io reference and get rundown marked
+		bool hasRunDownRight = completionKey->GetRundownRight();
 
-                // release completionkey object
-                m_64kHandle.decRef64kHandle(completionKey->selfRef);
-            }
+		NLOG_INFO("{[%u]} io[%u]:[%p] rundown status: ", completionKey->id, idId, completionKey);
+		NLOG_INFO("    pending-io: %d socket: %04X ctx: %p", completionKey->pendingios, completionKey->netSocket, completionKey->handleContext);
 
-            return;
-        }
+		if (hasRunDownRight)
+		{
+			NLOG_INFO("{[%u]} io[%u]:[%p] rundown granted ", completionKey->id, idId, completionKey);
+			ASSERT(completionKey->pendingios == 0);
 
-        if (!reuseIO && io)
-        {
-            _releasePerIOData(io);
-            io = nullptr;
-        }
+			auto cpId = completionKey->id;
+			// user must close the 64k handle at sometime or the resouce hold by 64k handle will keep not release
+			m_NetHandler->OnNetDestroy(completionKey->handleContext);
 
-        completionKey->ReleaseRundownProtection();
+			NLOG_INFO("{[%u]} io[%u]:[%p] now start to drop self ", cpId, idId, completionKey);
 
-        return;
+			// release self refference
+			// only one who are performing running down has to do this
+			m_64kHandle.decRef64kHandle(completionKey->selfRef);
+		}
+		else
+		{
+			NLOG_INFO("{[%u]} io[%u]:[%p] rundown skiped", completionKey->id, idId, completionKey);
+		}
     }
 
     bool ProcessCompletedIO(PERHANDLEDATA* completionKey, DWORD bytesTrans, IOCPMSG* io)
@@ -638,7 +661,7 @@ public:
         perHandleData->handleContext = lpCtx;
         perHandleData->netSocket = s;
 
-        //ok, all resources be standby, inc reffernce to 64k handle
+        //ok, all resources are ok, inc reffernce to 64k handle for self ref
         m_64kHandle.addRef64kHandle(h);
         perHandleData->selfRef = h;
 
@@ -662,14 +685,17 @@ public:
         saddr.sin_port = htons(port);
         int r = 0;
 
+		// we must first add additional ref to 64k handle for user befor triggering any ios!!!
+		m_64kHandle.addRef64kHandle(h);
         r = ::WSAConnect(s, (SOCKADDR*)&saddr, sizeof(saddr), NULL, NULL, NULL, NULL);
         if (SOCKET_ERROR != r)
         {
-            // ok ,add additional reff to 64k handle for user and return that handle 
-            m_64kHandle.addRef64kHandle(h);
+            // ok,return that handle 
+            //m_64kHandle.addRef64kHandle(h);
             return h;
         }
 
+		m_64kHandle.decRef64kHandle(h);
         m_64kHandle.decRef64kHandle(h);
         return INVALID_64KHANDLE;
     }

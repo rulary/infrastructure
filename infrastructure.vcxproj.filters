@@ -34,6 +34,9 @@
     <Filter Include="ObjectHandle">
       <UniqueIdentifier>{b1f26527-fb66-4539-b5db-ae326e5ea85a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="PEDebug">
+      <UniqueIdentifier>{03c6ee61-374f-4e50-bf72-d72d7f764164}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\include\threadPool.h">
@@ -126,6 +129,15 @@
     <ClInclude Include="source\use\Cpp11TemplateAlias.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="source\PE_DEBUG\DumpBuffer.h">
+      <Filter>PEDebug</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PE_DEBUG\ExceptionTrace.h">
+      <Filter>PEDebug</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PE_DEBUG\StackWalker.h">
+      <Filter>PEDebug</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\use\PrototypeTest.cpp">
@@ -136,6 +148,15 @@
     </ClCompile>
     <ClCompile Include="source\use\SerializedProcessorTest.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PE_DEBUG\DumpBuffer.cpp">
+      <Filter>PEDebug</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PE_DEBUG\ExceptionTrace.cpp">
+      <Filter>PEDebug</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PE_DEBUG\StackWalker.cpp">
+      <Filter>PEDebug</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

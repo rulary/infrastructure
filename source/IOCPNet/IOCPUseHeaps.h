@@ -4,6 +4,8 @@
 #include "IOCPNetType.h"
 #include <WinBase.h>
 
+#define HEAP_CREATE_FLAG	HEAP_GENERATE_EXCEPTIONS
+
 class HeapOfIOCP
 {
     HANDLE hPerHandleHeap;
@@ -20,11 +22,11 @@ public:
         , hSendBuffHeap(NULL)
         , hAcceptExBuffHeap(NULL)
     {
-        hPerHandleHeap = ::HeapCreate(0, sizeof(PERHANDLEDATA)* MIN_INTEND_HANDLE, 0);
-        hPerIOMsgHeap = ::HeapCreate(0, sizeof(IOCPMSG)* 2 * MIN_INTEND_HANDLE, 0);
-        hReceivBuffHeap = ::HeapCreate(0, RECEIVBUFF_LEN * MIN_INTEND_HANDLE, 0);
-        hSendBuffHeap = ::HeapCreate(0, RECEIVBUFF_LEN * MIN_INTEND_HANDLE, 0);
-        hAcceptExBuffHeap = ::HeapCreate(0, ACCEPTEX_BUFFSIZE * ACCEPTEX_NUMPERROUND, 0);
+		hPerHandleHeap = ::HeapCreate(HEAP_CREATE_FLAG, sizeof(PERHANDLEDATA)* MIN_INTEND_HANDLE, 0);
+		hPerIOMsgHeap = ::HeapCreate(HEAP_CREATE_FLAG, sizeof(IOCPMSG)* 2 * MIN_INTEND_HANDLE, 0);
+		hReceivBuffHeap = ::HeapCreate(HEAP_CREATE_FLAG, RECEIVBUFF_LEN * MIN_INTEND_HANDLE, 0);
+		hSendBuffHeap = ::HeapCreate(HEAP_CREATE_FLAG, RECEIVBUFF_LEN * MIN_INTEND_HANDLE, 0);
+		hAcceptExBuffHeap = ::HeapCreate(HEAP_CREATE_FLAG, ACCEPTEX_BUFFSIZE * ACCEPTEX_NUMPERROUND, 0);
     }
 
     ~HeapOfIOCP()
@@ -40,12 +42,12 @@ public:
     inline
     char* allocReceivBuff()
     {
-        return (char*)::HeapAlloc(hReceivBuffHeap, 0, RECEIVBUFF_LEN);
+		return (char*)::HeapAlloc(hReceivBuffHeap, HEAP_ZERO_MEMORY, RECEIVBUFF_LEN);
     }
     inline
     void releaseReceivBuff(char* buff)
     {
-        ::HeapFree(hReceivBuffHeap, 0, buff);
+		::HeapFree(hReceivBuffHeap, 0, buff);
     }
     inline
     char* allocSendBuff(int len)

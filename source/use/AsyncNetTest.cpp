@@ -6,13 +6,16 @@
 #include <conio.h>
 #include <thread>
 
-#define MEMDBSERVER_IP    "127.0.0.1"
+#define MEMDBSERVER_IP    "121.40.125.104" //"127.0.0.1" //
 #define MAINMEMSERVERPOT  8600
 
 
 long_t totalStart = 0;
 long_t totalStoped = 0;
 bool   isStopAsyncNet = false;
+int_t  testType = 0;
+bool   restartTest = false;
+
 using namespace AsyncNeting;
 AsyncNet iocpNetTest;
 
@@ -30,6 +33,8 @@ class TestNetSession
     string m_RemoteIP;
     int    m_RemotePort;
 
+	int    m_testCount;
+
     MPSCLockFreeQueue m_sProcessor;    //用于单线程化执行
 
 public:
@@ -40,6 +45,7 @@ public:
         , m_RemotePort(0)
         , m_sId(-1)
         , m_sProcessor(processHeap)
+		, m_testCount(10)
     {}
 
 public:
@@ -54,7 +60,11 @@ public:
 
     void stopNet() override
     {
-        m_NetManager->closeNetHandle(m_NetHandle);
+		if (m_NetHandle != INVALID_64KHANDLE)
+		{
+			m_NetManager->closeNetHandle(m_NetHandle);
+			m_NetHandle = INVALID_64KHANDLE;
+		}
     }
 
 public:
@@ -91,13 +101,20 @@ public:
         if(!Send("wewqewewqewqrwrewrwe",15))
         break;
         }*/
+
+		interlockedInc(&totalStart);
     }
 
     void Stop() override
     {
         interlockedInc(&totalStoped);
         printf("释放网络[%u] %d => %d 会话资源 <%u>\r\n", m_sId, m_LocalPort, m_RemotePort, totalStoped);
-        m_NetManager->closeNetHandle(m_NetHandle);
+
+		if (m_NetHandle != INVALID_64KHANDLE)
+		{
+			m_NetManager->closeNetHandle(m_NetHandle);
+			m_NetHandle = INVALID_64KHANDLE;
+		}
     }
 
 public:
@@ -109,7 +126,8 @@ public:
     int  OnReceiv(char* buff, int dataLen, bool canReserve) override
     {
         //printf("网络[%u]：%d => %d 收到数据：长度为:%d  \r\n", m_sId, m_LocalPort, m_RemotePort, dataLen);
-        send(buff, dataLen);
+		if (m_testCount-- > 0)
+			send(buff, dataLen);
         /*
         if (m_sProcessor.EnQueue(this) == 1)
         {
@@ -155,6 +173,16 @@ public:
 static
 std::shared_ptr<std::thread> _testThread;
 
+void SetTestType(int flag)
+{
+	testType = flag;
+}
+
+void RestTartTest()
+{
+	restartTest = true;
+}
+
 void StopAsyncNet()
 {
     isStopAsyncNet = true;
@@ -167,23 +195,37 @@ void AsyncTestThread()
     const char* sessionName = "test";
     iocpNetTest.registerNetSession(sessionName, make_shared<SessionFactory<TestNetSession>>());
 
-    bool r = iocpNetTest.listen(sessionName, MAINMEMSERVERPOT);
+	if (testType & 1)
+	{
+		bool r = iocpNetTest.listen(sessionName, MAINMEMSERVERPOT);
 
-    if (r)
-    {
-        printf("端口监听已经启动，按任意键开始测试\r\n");
-    }
-    else
-    {
-        printf("端口监听失败!\r\n");
-        return;
-    }
+		if (r)
+		{
+			printf("端口监听已经启动\r\n");
+		}
+		else
+		{
+			printf("端口监听失败!\r\n");
+			return;
+		}
+	}
+
+	if (!(testType & 2))
+	{
+		while (!isStopAsyncNet)
+			Sleep(2000);
+
+		return;
+	}
 
     //_getch();
 
     std::vector<INetSession*> sessions;
     /**/
     srand(GetTickCount());
+
+STARTTEST:
+	restartTest = false;
     for (int i = 1, index = 0;; i++)
     {
         auto session = iocpNetTest.startSession(sessionName, MEMDBSERVER_IP, MAINMEMSERVERPOT, true);
@@ -213,7 +255,22 @@ void AsyncTestThread()
         }
     }
 
-    for (int i = 0; i < sessions.size(); i++)
+	while (!isStopAsyncNet)
+	{
+		Sleep(2000);
+		if (restartTest)
+		{
+			for (size_t i = 0; i < sessions.size(); i++)
+			{
+				sessions[i]->stopNet();
+				sessions[i] = nullptr;
+				sessions.clear();
+			}
+			goto STARTTEST;
+		}	
+	}
+
+    for (size_t i = 0; i < sessions.size(); i++)
     {
         sessions[i]->stopNet();
         sessions[i] = nullptr;
@@ -223,4 +280,13 @@ void AsyncTestThread()
 void StartAsyncTest()
 {
     _testThread = std::make_shared<std::thread>(AsyncTestThread);
+}
+
+void dumpStatus()
+{
+	printf(" >>>>>>>>>>>>>>>>>>>>>> dumping status ... \r\n");
+	printf("  total started session: %d \r\n", totalStart);
+	printf("  total stoped session : %d \r\n", totalStoped);
+	printf("  remain session : %d \r\n", totalStart > totalStoped ? totalStart - totalStoped  : 0);
+	printf(" >>>>>>>>>>>>>>>>>>>>>> dump end \r\n");
 }

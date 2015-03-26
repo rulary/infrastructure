@@ -6,6 +6,8 @@
 #include <conio.h>
 #include <stdio.h>
 
+#include "../PE_DEBUG/ExceptionTrace.h"
+
 namespace TPLUsing{
 template <typename T>
 struct _M;
@@ -46,13 +48,38 @@ struct AUse< typename TPLUsing<Atom>::template M<Atom> >
 
 }
 
+int divzero(int x)
+{
+	return 2 / x;
+}
+
 int main(int argc,char** argv)
 {
+	/**
+	int x = 0;
+
+	_getch();
+
+	__try{
+		x = divzero(x);
+	}
+	__except (ExceptionTraceFilter(GetExceptionInformation())){}
+
+	printf("x = %d", x);
+	/**/
     f();
     b<Y>();
-    _getch();
 
+	_getch();
+	
+	SetTestType(2);
     StartAsyncTest();
+
+	//for (;;)
+	//{
+	//	_getch();
+	//	RestTartTest();
+	//}
     /**
     for (int i = 0; i < 10; i++)
     {
@@ -68,8 +95,14 @@ int main(int argc,char** argv)
 
     StopAsyncNet();
 
+	printf("press enter to dump status \r\n");
+	_getch();
+
+	dumpStatus();
     printf("press enter to exit program \r\n");
     _getch();
+
+	dumpStatus();
     printf("program exit \r\n");
     return 0;
 }

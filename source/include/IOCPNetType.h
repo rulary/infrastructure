@@ -7,7 +7,7 @@
 
 #include "RundownProtect.h"
 
-//#define MINISERVER
+#define MINISERVER
 
 #ifdef MINISERVER
 #   define MIN_INTEND_HANDLE       600
@@ -99,6 +99,8 @@ struct PERHANDLEDATA : public _64kObject
     long_t              pendingios;
     bool                isRStarting;
     bool                isRStarted;
+	bool                isAccepted;
+	bool                isReleased;
 
     PERHANDLEDATA()
         :selfRef(INVALID_64KHANDLE)
@@ -123,6 +125,8 @@ struct PERHANDLEDATA : public _64kObject
         pendingios = 0;
         isRStarting = false;
         isRStarted = false;
+		isAccepted = false;
+		isReleased = false;
 
         memset(prePostedSends, 0, sizeof(prePostedSends));
         memset(postedSends, 0, sizeof(postedSends));

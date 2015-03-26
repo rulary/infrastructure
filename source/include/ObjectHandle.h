@@ -44,7 +44,7 @@ typedef union _ObjectHandleTableCode
 {
 	struct
 	{
-#if defined (_x64_)
+#if defined (X64)
 		uint64_t pointer : 62;
 		uint64_t level : 2;
 #else
@@ -56,8 +56,9 @@ typedef union _ObjectHandleTableCode
 	void* rawPointerValue;
 }ObjectHandleTableCode_t;
 
-
+#define HandleFromIndex(t,i)				((t << OBJECT_HANDLE_PAGE_BIT_LEN) | i);				
 #define ObjectHandleIndex(h)                (h & ~(OBJECT_HANDLE_DIRECTORY_SIZE - 1))
+#define HANDLE_MAGIC_NUMBER					(772476465)
 
 struct handleObject_t
 {
@@ -71,19 +72,30 @@ protected:
     ~handleObject_t() {}
 };
 
-typedef union _ObjectHandleTableEntry
+enum  TableEntryFlag
 {
-    struct
-    {
-        RUNDOWN_PROTECT     rundownLock;
-        handleObject_t*     objectPointer;
-    };
+	FREE = 0,
+	INUSE = 1,
+	RUNNINGDOWN = 2
+};
 
-    struct
-    {
-        long_t                   tableIndex;
-        _ObjectHandleTableEntry* nextFreeEntry;
-    };
+typedef struct _ObjectHandleTableEntry
+{
+	int   flag;
+	union
+	{
+		struct
+		{
+			RUNDOWN_PROTECT     rundownLock;
+			handleObject_t*     objectPointer;
+		};
+
+		struct
+		{
+			long_t                   tableIndex;
+			_ObjectHandleTableEntry* nextFreeEntry;
+		};
+	};
 } ObjectHandleTableEntry;
 
 struct _IObjectManager
@@ -110,18 +122,22 @@ struct ObjectHandleTable
 private:
     uint32_t    handleTick;
     ExLock      handleLock;
+
     _IObjectManager* genericObjManager;
     _HandleTableMemAllocator*  memAllocator;
 
     ObjectHandleTableEntry*  freeEntryList;
 	ObjectHandleTableCode_t  handleTable;
 
+	ObjectHandleTableEntry*  rundownedEntryList;
+
 	int			tableLevelInit;
 public:
 	ObjectHandleTable(_IObjectManager* objManager, _HandleTableMemAllocator* allocator, int level = 0)
-		:genericObjManager(objManager)
+		: genericObjManager(objManager)
 		, memAllocator(allocator)
         , freeEntryList(nullptr)
+		, rundownedEntryList(nullptr)
 		, tableLevelInit(level)
     {
 		handleTable.rawPointerValue = nullptr;
@@ -131,17 +147,19 @@ public:
 
 	void initTable()
 	{
-		handleTable.rawPointerValue = memAllocator->alloc(OBJECT_HANDLE_PAGE_SIZE);
+		handleTable.rawPointerValue = memAllocator->alloc(OBJECT_HANDLE_PAGE_SIZE * sizeof(ObjectHandleTableEntry));
 		freeEntryList = (ObjectHandleTableEntry*)handleTable.rawPointerValue;
 
 		ObjectHandleTableEntry* cur = freeEntryList;
+		cur->flag = /*TableEntryFlag::*/FREE;
 		cur->tableIndex = 0;
 		ObjectHandleTableEntry* arrayOfHTE = freeEntryList;
 
-		for (int i = 1; i < OBJECT_HANDLE_PAGE_SIZE / sizeof(ObjectHandleTableEntry); i++)
+		for (int i = 1; i < OBJECT_HANDLE_PAGE_SIZE; i++)
 		{
 			cur->nextFreeEntry = &arrayOfHTE[i];
 			cur = cur->nextFreeEntry;
+			cur->flag = /*TableEntryFlag::*/FREE;
 			cur->tableIndex = i;
 		}
 
@@ -151,12 +169,24 @@ public:
 	}
 
 private:
-    ObjectHandleTableEntry*  _lookupTableEntry(uint32_t handle)
+	bool _checkObjectSig(uint32_t handle, handleObject_t* object)
+	{
+		return  object->magicCodeOfHandleObject == (handle ^ HANDLE_MAGIC_NUMBER);
+	}
+
+	uint32_t _signObject(handleObject_t* object, uint32_t tableIndex)
+	{
+		uint32_t handle = HandleFromIndex(handleTick, tableIndex);
+		object->magicCodeOfHandleObject = handle ^ HANDLE_MAGIC_NUMBER;
+		return  handle;
+	}
+
+    ObjectHandleTableEntry*  _lookupTableEntry(uint32_t index)
     {
         ObjectHandle_t objecthandle;
         ObjectHandleTableEntry* pointerArray;
 
-        objecthandle.handleValue = handle;
+		objecthandle.handleValue = index;
 
 		pointerArray = (ObjectHandleTableEntry*)handleTable.pointer;
 
@@ -200,14 +230,16 @@ private:
 
 		freeEntryList = freeEntryList->nextFreeEntry;
 
+		freeEntry->flag = /*TableEntryFlag::*/INUSE;
         return freeEntry;
     }
 
 	void _releaseObjectHandleEntry(ObjectHandleTableEntry* entry, int index)
 	{
-		//TODO: ASSERT & Ensure entry is inrange
+		//TODO: ASSERT & Ensure entry is in range
 		entry->nextFreeEntry = freeEntryList;
 		entry->tableIndex = index;
+		entry->flag = /*TableEntryFlag::*/FREE;
 
 		//TODO: fix it in non-level0 case
 		ASSERT(&((ObjectHandleTableEntry*)handleTable.pointer)[index] == entry);
@@ -220,7 +252,7 @@ private:
         return false;
     }
 
-    uint32_t _allocObjectHandle(handleObject_t* objPtr)
+	uint32_t _allocHandleForObject(handleObject_t* objPtr)
     {
 		Locker lock(&handleLock);
         ObjectHandleTableEntry* freeEntry = _allocateObjectHandleEntry();
@@ -236,10 +268,17 @@ private:
                 return INVALID_OBJECTHANDLE;
         }
 
-		uint32_t handle = freeEntry->tableIndex;
+		uint32_t index = (uint32_t)freeEntry->tableIndex;
+
+		// make a signature into object
+		uint32_t handle = _signObject(objPtr, index);
+
 		freeEntry->objectPointer = objPtr;
 
 		initRundownProtectBlock(&freeEntry->rundownLock);
+
+		//inc time tick
+		handleTick++;
 
 		return handle;
     }
@@ -248,11 +287,35 @@ private:
 	{
 		Locker lock(&handleLock);
 
-		ObjectHandleTableEntry* entry = _lookupTableEntry(handle);
+		ObjectHandleTableEntry* entry = _lookupTableEntry(ObjectHandleIndex(handle));
 
-		if (!entry)
+		if (!entry || entry->flag != 1)
 			return false;
 
+		if (!_checkObjectSig(handle, entry->objectPointer))
+			return false;
+
+		// check if we have rundown right of that object
+		// Note : getRundownRight has a side effect that when applied, the object will be marked as running down.
+		if (getRundownRight(&entry->rundownLock))
+		{
+			//terminate life cycle of object
+			if (genericObjManager != nullptr)
+			{
+				genericObjManager->releaseObj(entry->objectPointer);
+			}
+			else
+			{
+				entry->objectPointer->releaseObject();
+			}
+
+			// free handle entry
+			_releaseObjectHandleEntry(entry, ObjectHandleIndex(handle));
+		}
+		else
+		{
+			// insert that entry into 
+		}
 		
 	}
 };
