@@ -6,7 +6,7 @@
 #include <conio.h>
 #include <thread>
 
-#define MEMDBSERVER_IP    "121.40.125.104" //"127.0.0.1" //
+#define MEMDBSERVER_IP    "127.0.0.1" //
 #define MAINMEMSERVERPOT  8600
 
 
