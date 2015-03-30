@@ -17,7 +17,7 @@ public:
 	MyStackWalker(DWORD dwProcessId, HANDLE hProcess) : StackWalker(dwProcessId, hProcess) {}
 	virtual void OnOutput(LPCSTR szText) 
 	{ 
-#ifdef X64
+#ifdef UNICODE
 		{
 			ZeroMemory(buff, sizeof(buff));
 			::MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, szText, strlen(szText), buff, 1024);

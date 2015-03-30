@@ -37,6 +37,12 @@
     <Filter Include="PEDebug">
       <UniqueIdentifier>{03c6ee61-374f-4e50-bf72-d72d7f764164}</UniqueIdentifier>
     </Filter>
+    <Filter Include="String">
+      <UniqueIdentifier>{60848ea2-e523-408c-9d62-84e3662d4b8e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="String\Encoding">
+      <UniqueIdentifier>{63f8bb6a-228f-4255-bde8-e4d325e67a01}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\include\threadPool.h">
@@ -138,6 +144,15 @@
     <ClInclude Include="source\PE_DEBUG\StackWalker.h">
       <Filter>PEDebug</Filter>
     </ClInclude>
+    <ClInclude Include="source\String\Encoding\convert.h">
+      <Filter>String\Encoding</Filter>
+    </ClInclude>
+    <ClInclude Include="source\String\String.h">
+      <Filter>String</Filter>
+    </ClInclude>
+    <ClInclude Include="source\string\stdCooperator.h">
+      <Filter>String</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\use\PrototypeTest.cpp">
@@ -157,6 +172,9 @@
     </ClCompile>
     <ClCompile Include="source\PE_DEBUG\StackWalker.cpp">
       <Filter>PEDebug</Filter>
+    </ClCompile>
+    <ClCompile Include="source\string\String.cpp">
+      <Filter>String</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

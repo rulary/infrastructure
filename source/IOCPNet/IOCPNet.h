@@ -50,7 +50,7 @@ public:
         ::GetNativeSystemInfo(&sysinfo);
 
         DWORD dwWorkThread = sysinfo.dwNumberOfProcessors * 2 + 2;
-        m_hIOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, sysinfo.dwNumberOfProcessors + 2);
+		m_hIOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, sysinfo.dwNumberOfProcessors);
 
         WSADATA wsaData;
         ::WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -477,19 +477,21 @@ private:
 
 		// the net session is end from now
 		long_t idId = -1;
+		long_t cpKeyId = completionKey->id;
+
 		if (io)
 		{
 			idId = io->id;
-			NLOG_INFO("{[%u]} io[%u]:[%p] try to get rundown right", completionKey->id, idId, completionKey);
+			NLOG_INFO("{[%u]} io[%u]:[%p] try to get rundown right", cpKeyId, idId, completionKey);
 			_releasePerIOData(io);
 			io = nullptr;
 		}
 
+		NLOG_INFO("{[%u]} io[%u]:[%p] rundown status: ", completionKey->id, idId, completionKey);
+		NLOG_INFO("    pending-io: %d socket: %04X ctx: %p", pio, completionKey->netSocket, completionKey->handleContext);
+
 		// release io reference and get rundown marked
 		bool hasRunDownRight = completionKey->GetRundownRight();
-
-		NLOG_INFO("{[%u]} io[%u]:[%p] rundown status: ", completionKey->id, idId, completionKey);
-		NLOG_INFO("    pending-io: %d socket: %04X ctx: %p", completionKey->pendingios, completionKey->netSocket, completionKey->handleContext);
 
 		if (hasRunDownRight)
 		{
@@ -508,7 +510,7 @@ private:
 		}
 		else
 		{
-			NLOG_INFO("{[%u]} io[%u]:[%p] rundown skiped", completionKey->id, idId, completionKey);
+			NLOG_INFO("{[%u]} io[%u]:[%p] rundown skiped", cpKeyId, idId, completionKey);
 		}
     }
 

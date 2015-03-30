@@ -1,36 +1,25 @@
-// CDumpBuffer.H
+#ifndef _DUMP_BUFFER_H_
+#define _DUMP_BUFFER_H_
 
-// Author: Dr. Carlo Pescio
-// Eptacom Consulting
-// Via Bernardo Forte 2-3
-// 17100 Savona - ITALY
-// Fax +39-19-854761
-// email pescio@programmers.net
+#include "string/encoding/convert.h"
 
-
-#ifndef DUMP_BUFFER_
-
-
-#define DUMP_BUFFER_
-#include "windows.h"
-
-//#define LOGFILENAME "PE_DEBUG.log"
+#include <tchar.h>
 
 class CDumpBuffer
-  {
-  public :
-    CDumpBuffer();
+{
+public:
+	CDumpBuffer();
 	~CDumpBuffer();
-    void Clear() ;
+	void Clear();
 	void Printf(BOOL bIsLog, TCHAR* format, ...);
-    void SetWindowText( HWND hWnd ) ;
-  private :
-    enum { BUFFER_SIZE = 32000 } ;
-    char buffer[ BUFFER_SIZE ] ;
-    char* current ;
+
+private:
+	enum { BUFFER_SIZE = 64 * 1024 };
+	char buffer[BUFFER_SIZE];
+	char* current;
 	CRITICAL_SECTION DumpBufferSync;
 	HANDLE hLogFile;
-  } ;
+};
 
 
-#endif // #ifndef DUMP_BUFFER_
+#endif // #ifndef _DUMP_BUFFER_H_

@@ -90,16 +90,3 @@ void CDumpBuffer::Printf(BOOL bIsLog, TCHAR* format, ...)
 	::LeaveCriticalSection(&DumpBufferSync);
 	*/
 }
-
-
-void CDumpBuffer::SetWindowText(HWND hWnd)
-{
-	::EnterCriticalSection(&DumpBufferSync);
-	__try{
-		SendMessage(hWnd, WM_SETTEXT, 0, (LPARAM)buffer);
-	}
-	__except (EXCEPTION_EXECUTE_HANDLER){
-	}
-	::LeaveCriticalSection(&DumpBufferSync);
-}
-

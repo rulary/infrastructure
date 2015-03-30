@@ -5,9 +5,38 @@
 #include <vector>
 #include <conio.h>
 #include <thread>
+#include <math.h>
 
-#define MEMDBSERVER_IP    "127.0.0.1" //
+#define MEMDBSERVER_IP    "127.0.0.1" //"121.40.125.104" //
 #define MAINMEMSERVERPOT  8600
+
+#define INTEG_FUNC(x) fabs(sin(x))
+
+double CPUDInTensive()
+{
+	unsigned int i, j, N;
+	double step, x_i, sum;
+	double interval_begin = 0.0;
+	double interval_end = 2.0 * 3.141592653589793238;
+
+	for (j = 2; j < 10; j++)
+	{
+		N = 1 << j;
+
+		step = (interval_end - interval_begin) / N;
+		sum = INTEG_FUNC(interval_begin) * step / 2.0;
+
+		for (i = 1; i < N; i++)
+		{
+			x_i = i * step;
+			sum += INTEG_FUNC(x_i) * step;
+		}
+
+		sum += INTEG_FUNC(interval_end) * step / 2.0;
+	}
+
+	return sum;
+}
 
 
 long_t totalStart = 0;
@@ -18,6 +47,8 @@ bool   restartTest = false;
 
 using namespace AsyncNeting;
 AsyncNet iocpNetTest;
+
+void AsyncTestThread();
 
 class TestNetSession 
     : public INetSession_SYS
@@ -91,7 +122,7 @@ public:
         m_RemotePort = iRemotePort;
 
         //printf("网络[%u]：%d => %d 会话已经开始  \r\n",m_sId,iLocalPort,iRemotePort);
-        char buff[64 * 1024];
+        char buff[4 * 1024];
         //= "wewqewewqewqrwrewrweffgggrtfgertewtewtfegtttttttttttttttttttwwwwwwwwwwwwwwwtewwewwr";
         send(buff, sizeof(buff));
         /*
@@ -125,8 +156,12 @@ public:
 
     int  OnReceiv(char* buff, int dataLen, bool canReserve) override
     {
+
+		auto r = CPUDInTensive();
+
+		*(double*)buff = r;
         //printf("网络[%u]：%d => %d 收到数据：长度为:%d  \r\n", m_sId, m_LocalPort, m_RemotePort, dataLen);
-		if (m_testCount-- > 0)
+		//if (m_testCount-- > 0)
 			send(buff, dataLen);
         /*
         if (m_sProcessor.EnQueue(this) == 1)
@@ -173,6 +208,8 @@ public:
 static
 std::shared_ptr<std::thread> _testThread;
 
+
+// controlers
 void SetTestType(int flag)
 {
 	testType = flag;
@@ -189,6 +226,21 @@ void StopAsyncNet()
     _testThread->join();
 }
 
+void StartAsyncTest()
+{
+	_testThread = std::make_shared<std::thread>(AsyncTestThread);
+}
+
+void dumpStatus()
+{
+	printf(" >>>>>>>>>>>>>>>>>>>>>> dumping status ... \r\n");
+	printf("  total started session: %d \r\n", totalStart);
+	printf("  total stoped session : %d \r\n", totalStoped);
+	printf("  remain session : %d \r\n", totalStart > totalStoped ? totalStart - totalStoped : 0);
+	printf(" >>>>>>>>>>>>>>>>>>>>>> dump end \r\n");
+}
+
+// work thread
 void AsyncTestThread()
 {
     
@@ -226,7 +278,7 @@ void AsyncTestThread()
 
 STARTTEST:
 	restartTest = false;
-    for (int i = 1, index = 0;; i++)
+    for (int i = 1, index = 0; i < 100; i++)
     {
         auto session = iocpNetTest.startSession(sessionName, MEMDBSERVER_IP, MAINMEMSERVERPOT, true);
         if (rand() % 13 == 0)
@@ -277,16 +329,3 @@ STARTTEST:
     }
 }
 
-void StartAsyncTest()
-{
-    _testThread = std::make_shared<std::thread>(AsyncTestThread);
-}
-
-void dumpStatus()
-{
-	printf(" >>>>>>>>>>>>>>>>>>>>>> dumping status ... \r\n");
-	printf("  total started session: %d \r\n", totalStart);
-	printf("  total stoped session : %d \r\n", totalStoped);
-	printf("  remain session : %d \r\n", totalStart > totalStoped ? totalStart - totalStoped  : 0);
-	printf(" >>>>>>>>>>>>>>>>>>>>>> dump end \r\n");
-}

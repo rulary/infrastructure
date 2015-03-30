@@ -10,11 +10,16 @@
 //typedef ULONG_PTR   ulong_ptr;
 //typedef LONG_PTR    long_ptr;
 #ifdef _WCC_
+
 typedef __int64             int64_t;
 typedef unsigned __int64    uint64_t;
 
 typedef __int32             int32_t;
 typedef unsigned __int32    uint32_t;
+
+typedef __int16				int16_t;
+typedef unsigned __int16	uint16_t;
+
 #else
 #   include <stdint.h>
 #endif  /* _WCC_ */

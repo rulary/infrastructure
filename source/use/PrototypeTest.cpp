@@ -5,6 +5,11 @@
 #include "Cpp11TemplateAlias.h"
 #include <conio.h>
 #include <stdio.h>
+#include <math.h> 
+#include <tchar.h>
+
+#include "../String/String.h"
+#include "../String/stdCooperator.h"
 
 #include "../PE_DEBUG/ExceptionTrace.h"
 
@@ -48,6 +53,7 @@ struct AUse< typename TPLUsing<Atom>::template M<Atom> >
 
 }
 
+
 int divzero(int x)
 {
 	return 2 / x;
@@ -55,6 +61,31 @@ int divzero(int x)
 
 int main(int argc,char** argv)
 {
+	StringEx::string testString (_T("this is string testing"));
+
+	std::cout << testString << " hey!" << std::endl;
+	std::cout << StringEx::string(testString) << std::endl;
+	StringEx::string another = std::move(testString);
+	std::cout << another << std::endl;
+	std::cout << testString << "should be none!" << std::endl;
+
+	StringEx::string anotherStr = "another test string";
+	std::cout << anotherStr << std::endl;
+
+	testString = anotherStr;
+	testString += " expended ";
+	std::cout << testString << std::endl;
+	std::cout << anotherStr << std::endl;
+
+	testString += " expended 2";
+	std::cout << testString << std::endl;
+
+	std::cout << (anotherStr == "another test string") << std::endl;
+	std::cout << (anotherStr == StringEx::string("another test string")) << std::endl;
+
+	std::cout << (anotherStr == "another test stringA") << std::endl;
+	std::cout << (anotherStr == StringEx::string("another test string ")) << std::endl;
+
 	/**
 	int x = 0;
 
@@ -72,7 +103,7 @@ int main(int argc,char** argv)
 
 	_getch();
 	
-	SetTestType(2);
+	SetTestType(1);
     StartAsyncTest();
 
 	//for (;;)
@@ -102,7 +133,6 @@ int main(int argc,char** argv)
     printf("press enter to exit program \r\n");
     _getch();
 
-	dumpStatus();
     printf("program exit \r\n");
     return 0;
 }

@@ -29,7 +29,10 @@
 #   define  ASSERT( p )
 #endif
 
+#if defined(WINDOWS)
+// include windows api lib
 #define _WIN_LIB_
+#endif
 
 #undef IOCPNETLOG
 #define IOCPNETLOG
