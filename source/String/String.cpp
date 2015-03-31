@@ -123,7 +123,7 @@ void string::clear()
 	}
 }
 
-size_t string::length()
+size_t string::length() const
 {
 	if (internalImpl)
 		return internalImpl->isUnicode ? internalImpl ->unicode.len : internalImpl->ansi.len;
@@ -131,61 +131,246 @@ size_t string::length()
 	return 0;
 }
 
-bool string::ToAnsi(char* buff, int& len)
+bool string::ToAnsi(char* buff, int& sizeBytes) const
 {
 	if (!internalImpl)
 	{
-		len = -1;
+		sizeBytes = -1;
 		return false;
 	}
 
 	int strlen = (int)length();
-
-	if (strlen > len)
+	if (strlen <= 0)
 	{
-		len = strlen;
+		sizeBytes = -1;
 		return false;
 	}
 
-	if (internalImpl->isUnicode)
+	if (internalImpl->isUnicode && strlen * sizeof(wchar_t) > sizeBytes)
 	{
-		len = -1;
+		sizeBytes = strlen * sizeof(wchar_t);
 		return false;
 	}
 
-	memcpy_s(buff, len, internalImpl->ansi.buffer, strlen);
-
-	len = strlen;
-
-	return true;
-}
-
-bool string::ToUnicode(wchar_t* buff, int& len)
-{
-	if (!internalImpl)
+	if (!internalImpl->isUnicode && strlen > sizeBytes)
 	{
-		len = -1;
-		return false;
-	}
-
-	int strlen = (int)length();
-
-	if (strlen > len)
-	{
-		len = strlen;
+		sizeBytes = strlen;
 		return false;
 	}
 
 	if (!internalImpl->isUnicode)
 	{
-		len = -1;
+		bool isConverted = false;
+#if USE_UTF8
+		auto& ansi = Utf8ToAnsi(internalImpl->utf8);
+		isConverted = true;
+#else
+		auto& ansi = internalImpl->ansi;
+#endif
+		if (!ansi.buffer)
+		{
+			sizeBytes = -1;
+			return false;
+		}
+
+		if (ansi.len > sizeBytes)
+		{
+			sizeBytes = ansi.len;
+			return false;
+		}
+
+		memcpy_s(buff, sizeBytes, ansi.buffer, ansi.len);
+
+		if (ansi.len < sizeBytes)
+			buff[ansi.len] = 0;
+
+		sizeBytes = ansi.len;
+
+		if (isConverted)
+			FreeStringBuff(ansi);
+
+		return true;
+	}
+
+	auto ansi = Utf16ToAnsi(internalImpl->unicode);
+	if (!ansi.buffer)
+	{
+		sizeBytes = -1;
 		return false;
 	}
 
-	memcpy_s(buff, len * sizeof(wchar_t), internalImpl->unicode.buffer, strlen * sizeof(wchar_t));
+	if (ansi.len > sizeBytes)
+	{
+		sizeBytes = ansi.len;
+		return false;
+	}
 
-	len = strlen;
+	memcpy_s(buff, sizeBytes, ansi.buffer, ansi.len);
 
+	if (ansi.len < sizeBytes)
+		buff[ansi.len] = 0;
+
+	sizeBytes = ansi.len;
+
+	FreeStringBuff(ansi);
+	return true;
+	
+}
+
+bool string::ToUtf16(wchar_t* buff, int& sizeBytes) const
+{
+	if (!internalImpl)
+	{
+		sizeBytes = -1;
+		return false;
+	}
+
+	int strlen = (int)length();
+	if (strlen <= 0)
+	{
+		sizeBytes = -1;
+		return false;
+	}
+
+	if (internalImpl->isUnicode && strlen * sizeof(wchar_t) > sizeBytes)
+	{
+		sizeBytes = strlen * sizeof(wchar_t);
+		return false;
+	}
+
+	if (!internalImpl->isUnicode && strlen > sizeBytes)
+	{
+		sizeBytes = strlen;
+		return false;
+	}
+
+	if (internalImpl->isUnicode)
+	{
+		memcpy_s(buff, sizeBytes, internalImpl->unicode.buffer, strlen * sizeof(wchar_t));
+		if (strlen * sizeof(wchar_t) < sizeBytes)
+			buff[strlen] = 0;
+		sizeBytes = strlen * sizeof(wchar_t);
+
+		return true;
+	}
+
+#if USE_UTF8
+	auto utf16 = Utf8ToUtf16(internalImpl->utf8);
+#else
+	auto utf16 = AnsiToUtf16(internalImpl->ansi);
+#endif
+
+	if (!utf16.buffer)
+	{
+		sizeBytes = -1;
+		return false;
+	}
+
+	if (utf16.len * sizeof(wchar_t) > sizeBytes)
+	{
+		sizeBytes = utf16.len * sizeof(wchar_t);
+		FreeStringBuff(utf16);
+		return false;
+	}
+
+	memcpy_s(buff, sizeBytes, utf16.buffer, utf16.len * sizeof(wchar_t));
+
+	if (utf16.len * sizeof(wchar_t) < sizeBytes)
+		buff[utf16.len] = 0;
+
+	sizeBytes = utf16.len * sizeof(wchar_t);
+
+	FreeStringBuff(utf16);
+
+	return true;
+}
+
+bool string::ToUtf8(char* buff, int& sizeBytes) const
+{
+	if (!internalImpl)
+	{
+		sizeBytes = -1;
+		return false;
+	}
+
+	int strlen = (int)length();
+	if (strlen <= 0)
+	{
+		sizeBytes = -1;
+		return false;
+	}
+
+	if (internalImpl->isUnicode && strlen * sizeof(wchar_t) > sizeBytes)
+	{
+		sizeBytes = strlen * sizeof(wchar_t);
+		return false;
+	}
+
+	if (!internalImpl->isUnicode && strlen > sizeBytes)
+	{
+		sizeBytes = strlen;
+		return false;
+	}
+
+	if (!internalImpl->isUnicode)
+	{
+		bool isConverted = false;
+#if USE_UTF8
+		auto& utf8 = internalImpl->utf8;
+		
+#else
+		auto& utf8 = AnsiToUtf8(internalImpl->ansi);
+		isConverted = true;
+#endif
+		if (!utf8.buffer)
+		{
+			sizeBytes = -1;
+			return false;
+		}
+
+		if (utf8.len > sizeBytes)
+		{
+			sizeBytes = utf8.len;
+			if (isConverted)
+				FreeStringBuff(utf8);
+			return false;
+		}
+
+		memcpy_s(buff, sizeBytes, utf8.buffer, utf8.len);
+
+		if (utf8.len < sizeBytes)
+			buff[utf8.len] = 0;
+
+		sizeBytes = utf8.len;
+
+		if (isConverted)
+			FreeStringBuff(utf8);
+
+		return true;
+	}
+
+	auto utf8 = Utf16ToUtf8(internalImpl->unicode);
+	if (!utf8.buffer)
+	{
+		sizeBytes = -1;
+		return false;
+	}
+
+	if (utf8.len > sizeBytes)
+	{
+		sizeBytes = utf8.len;
+		FreeStringBuff(utf8);
+		return false;
+	}
+
+	memcpy_s(buff, sizeBytes, utf8.buffer, utf8.len);
+
+	if (utf8.len < sizeBytes)
+		buff[utf8.len] = 0;
+
+	sizeBytes = utf8.len;
+
+	FreeStringBuff(utf8);
 	return true;
 }
 
@@ -196,53 +381,53 @@ void string::format(const wchar_t* szFormat, ...)
 {}
 
 
-string string::subString(const char* sz)
+string string::subString(const char* sz) const
 {
 	return *this;
 }
 
-string string::subString(const wchar_t* sz)
+string string::subString(const wchar_t* sz) const
 {
 	return *this;
 }
 
-string string::subString(const string)
+string string::subString(const string) const
 {
 	return *this;
 }
 
 
-string string::replace(const char* patten, const char* replacement)
+string string::replace(const char* patten, const char* replacement) const
 {
 	return *this;
 }
 
-string string::replace(const wchar_t* patten, const wchar_t* replacement)
+string string::replace(const wchar_t* patten, const wchar_t* replacement) const
 {
 	return *this;
 }
 
-string string::replace(const string patten, const char* replacement)
+string string::replace(const string patten, const char* replacement) const
 {
 	return *this;
 }
 
-string string::replace(const string patten, const wchar_t* replacement)
+string string::replace(const string patten, const wchar_t* replacement) const
 {
 	return *this;
 }
 
-string string::replace(const string patten, const string replacement)
+string string::replace(const string patten, const string replacement) const
 {
 	return *this;
 }
 
-string string::replace(const char* patten, const string replacement)
+string string::replace(const char* patten, const string replacement) const
 {
 	return *this;
 }
 
-string string::replace(const wchar_t* patten, const string replacement)
+string string::replace(const wchar_t* patten, const string replacement) const
 {
 	return *this;
 }
@@ -273,7 +458,7 @@ std::vector<string> string::splitEx(std::function<bool(wchar_t, bool&)> f)
 {}
 */
 
-string string::operator+(const char* sz)
+string string::operator+(const char* sz) const
 {
 	if(internalImpl->isUnicode)
 		return *this;
@@ -285,12 +470,12 @@ string string::operator+(const char* sz)
 	return result;
 }
 
-string string::operator+(const wchar_t* sz)
+string string::operator+(const wchar_t* sz) const
 {
 	return *this;
 }
 
-string string::operator+(const string str)
+string string::operator+(const string str) const
 {
 	return *this;
 }
@@ -324,7 +509,7 @@ void string::operator+=(const string str)
 {
 }
 
-bool string::operator==(const char* sz)
+bool string::operator==(const char* sz) const
 {
 	if (internalImpl->isUnicode)
 	{
@@ -335,7 +520,7 @@ bool string::operator==(const char* sz)
 	return r == 0;
 }
 
-bool string::operator==(const wchar_t* sz)
+bool string::operator==(const wchar_t* sz) const
 {
 	if (!internalImpl->isUnicode)
 	{
@@ -344,7 +529,7 @@ bool string::operator==(const wchar_t* sz)
 	return false;
 }
 
-bool string::operator==(const string str)
+bool string::operator==(const string str) const
 {
 	if (internalImpl->isUnicode != str.internalImpl->isUnicode)
 		return false;
@@ -358,17 +543,17 @@ bool string::operator==(const string str)
 	return operator==(str.internalImpl->ansi.buffer);
 }
 
-bool string::operator!=(const char* sz)
+bool string::operator!=(const char* sz) const
 {
 	return !operator==(sz);
 }
 
-bool string::operator!=(const wchar_t* sz)
+bool string::operator!=(const wchar_t* sz) const
 {
 	return !operator==(sz);
 }
 
-bool string::operator!=(const string str)
+bool string::operator!=(const string str) const
 {
 	return !operator==(str);
 }
@@ -395,12 +580,20 @@ string& string::operator << (const string str)
 
 void string::print(std::ostream& out) const
 {
-	if (!internalImpl)
+	if (!internalImpl || length() <= 0)
 		return;
 
 	if (internalImpl->isUnicode)
 	{
-		// TODO
+		auto ansi = Utf16ToAnsi(internalImpl->unicode);
+		if (!ansi.buffer)
+			return;
+
+		if (ansi.len < ansi.maxLength)
+			ansi.buffer[ansi.len] = 0;
+
+		out << ansi.buffer;
+		FreeStringBuff(ansi);
 	}
 	else
 	{
@@ -552,7 +745,10 @@ void string::writeCopy(int miniCapacity)
 	if (miniCapacity >= currentCapacity)
 	{
 		copyUnderBuff(internalImpl, oldInternal);
-		internalImpl->ansi.len = oldInternal->ansi.len;
+		if (internalImpl->isUnicode)
+			internalImpl->unicode.len = oldInternal->unicode.len;
+		else
+			internalImpl->ansi.len = oldInternal->ansi.len;
 	}
 
 	DecUndergroundRef(oldInternal);

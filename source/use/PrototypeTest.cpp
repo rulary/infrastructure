@@ -59,14 +59,17 @@ int divzero(int x)
 	return 2 / x;
 }
 
+
+
 int main(int argc,char** argv)
 {
-	StringEx::string testString (_T("this is string testing"));
+	std::cout << "using : " << _T("tchar") << _T(" 中文") << std::endl;
+	StringEx::string testString (_T("this is string testing & 中文"));
 
 	std::cout << testString << " hey!" << std::endl;
-	std::cout << StringEx::string(testString) << std::endl;
-	StringEx::string another = std::move(testString);
-	std::cout << another << std::endl;
+	std::cout << StringEx::string(testString) << " that cloned!"<< std::endl;
+	StringEx::string moved = std::move(testString);
+	std::cout << moved <<  " that moved !!"<< std::endl;
 	std::cout << testString << "should be none!" << std::endl;
 
 	StringEx::string anotherStr = "another test string";
